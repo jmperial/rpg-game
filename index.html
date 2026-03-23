@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>勇者の伝説</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #000;
+    color: #fff;
+    font-family: 'MS Gothic', monospace;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    touch-action: manipulation;
+  }
+  #app {
+    width: 100%;
+    max-width: 480px;
+    min-height: 100vh;
+    background: #1a1a2e;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ===== MAP AREA ===== */
+  #map-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #0d1b2a;
+  }
+  #map-canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  /* ===== MESSAGE BOX ===== */
+  #message-box {
+    background: #16213e;
+    border: 3px solid #e2b96f;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 8px;
+    min-height: 80px;
+    font-size: 15px;
+    line-height: 1.6;
+    position: relative;
+  }
+  #message-text { color: #f0f0f0; }
+  #message-cursor {
+    display: inline-block;
+    width: 10px;
+    animation: blink 0.8s infinite;
+    color: #e2b96f;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* ===== STATUS BAR ===== */
+  #status-bar {
+    background: #0f3460;
+    border: 2px solid #e2b96f;
+    border-radius: 6px;
+    margin: 0 8px 4px;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+  }
+  .stat-item { text-align: center; }
+  .stat-label { color: #aaa; font-size: 11px; }
+  .stat-value { color: #f9d56e; font-weight: bold; font-size: 14px; }
+  #hp-bar-wrap { flex: 1; margin: 0 8px; }
+  .bar-label { font-size: 11px; color: #aaa; margin-bottom: 2px; }
+  .bar-bg { background: #333; border-radius: 4px; height: 10px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+  #hp-bar { background: linear-gradient(90deg, #e74c3c, #e2b96f); }
+  #mp-bar { background: linear-gradient(90deg, #3498db, #9b59b6); }
+
+  /* ===== BUTTONS ===== */
+  #btn-area {
+    padding: 8px;
+    display: grid;
+    gap: 6px;
+  }
+  .btn-row { display: flex; gap: 6px; }
+  button {
+    flex: 1;
+    padding: 14px 8px;
+    background: #16213e;
+    border: 2px solid #e2b96f;
+    border-radius: 8px;
+    color: #f0f0f0;
+    font-size: 15px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:active { background: #e2b96f; color: #000; transform: scale(0.97); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.dir-btn { font-size: 20px; padding: 18px; }
+  #dir-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 4px;
+    width: 180px;
+    margin: 0 auto;
+  }
+  .dir-center { grid-column: 2; grid-row: 2; }
+
+  /* ===== BATTLE SCREEN ===== */
+  #battle-screen {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+    padding: 8px;
+  }
+  #battle-bg {
+    flex: 1;
+    background: linear-gradient(180deg, #1a0a2e 0%, #0d1b2a 60%, #2d5a1b 100%);
+    border: 2px solid #e2b96f;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 16px;
+    margin-bottom: 8px;
+    position: relative;
+    min-height: 200px;
+  }
+  #enemy-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  #enemy-name { font-size: 14px; color: #e2b96f; }
+  #enemy-sprite {
+    font-size: 64px;
+    line-height: 1;
+    filter: drop-shadow(0 0 12px rgba(255,100,100,0.5));
+    transition: transform 0.2s;
+  }
+  #enemy-sprite.shake {
+    animation: shake 0.3s;
+  }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    25%{transform:translateX(-8px)}
+    75%{transform:translateX(8px)}
+  }
+  #enemy-hp-wrap { width: 80%; }
+  .battle-stat { font-size: 12px; color: #ccc; }
+
+  #player-area {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  #player-sprite { font-size: 48px; }
+
+  #battle-msg {
+    background: #16213e;
+    border: 2px solid #e2b96f;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 14px;
+    min-height: 60px;
+    margin-bottom: 8px;
+    color: #f0f0f0;
+    line-height: 1.5;
+  }
+  #battle-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  #battle-btns button { padding: 16px; font-size: 15px; }
+
+  /* ===== SCREENS ===== */
+  #title-screen, #menu-screen, #shop-screen, #inn-screen {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 24px 16px;
+    gap: 12px;
+    flex: 1;
+  }
+  .screen-title {
+    font-size: 28px;
+    color: #e2b96f;
+    text-shadow: 0 0 20px #e2b96f;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .screen-subtitle { font-size: 13px; color: #aaa; margin-bottom: 16px; text-align: center; }
+  .menu-btn { width: 100%; max-width: 280px; padding: 16px; font-size: 16px; }
+
+  /* ===== NOTIFICATIONS ===== */
+  #notif {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #e2b96f;
+    color: #000;
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  #notif.show { opacity: 1; }
+
+  /* ===== OVERLAY ===== */
+  #overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 10;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+  }
+  #overlay.show { display: flex; }
+  .overlay-box {
+    background: #16213e;
+    border: 3px solid #e2b96f;
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 320px;
+    text-align: center;
+  }
+  .overlay-title { font-size: 20px; color: #e2b96f; margin-bottom: 16px; }
+  .overlay-text { font-size: 14px; color: #f0f0f0; line-height: 1.7; margin-bottom: 16px; }
+  .overlay-btns { display: flex; gap: 8px; justify-content: center; }
+  .overlay-btns button { flex: 1; }
+
+  #main-screen { display: flex; flex-direction: column; flex: 1; }
+
+  /* item list */
+  .item-list { list-style: none; width: 100%; max-width: 320px; }
+  .item-list li {
+    display: flex; justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid #333;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .item-list li:active { background: #0f3460; }
+  .item-cost { color: #f9d56e; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- NOTIFICATION -->
+  <div id="notif"></div>
+
+  <!-- OVERLAY -->
+  <div id="overlay">
+    <div class="overlay-box">
+      <div class="overlay-title" id="overlay-title"></div>
+      <div class="overlay-text" id="overlay-text"></div>
+      <div class="overlay-btns" id="overlay-btns"></div>
+    </div>
+  </div>
+
+  <!-- TITLE SCREEN -->
+  <div id="title-screen">
+    <div class="screen-title">⚔️ 勇者の伝説 ⚔️</div>
+    <div class="screen-subtitle">魔王を倒して世界を救え！</div>
+    <button class="menu-btn" onclick="startNewGame()">はじめから</button>
+    <button class="menu-btn" id="btn-continue" onclick="loadGame()" disabled>つづきから</button>
+    <div style="font-size:12px;color:#555;margin-top:8px;">データはブラウザに自動保存されます</div>
+  </div>
+
+  <!-- MAIN SCREEN (Map + Controls) -->
+  <div id="main-screen">
+    <div id="status-bar">
+      <div class="stat-item">
+        <div class="stat-label">Lv</div>
+        <div class="stat-value" id="stat-lv">1</div>
+      </div>
+      <div id="hp-bar-wrap">
+        <div class="bar-label">HP <span id="stat-hp">10</span>/<span id="stat-maxhp">10</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="hp-bar" style="width:100%"></div></div>
+        <div class="bar-label">MP <span id="stat-mp">5</span>/<span id="stat-maxmp">5</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="mp-bar" style="width:100%"></div></div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Gold</div>
+        <div class="stat-value" id="stat-gold">50</div>
+      </div>
+    </div>
+
+    <div id="map-area">
+      <canvas id="map-canvas"></canvas>
+    </div>
+
+    <div id="message-box">
+      <span id="message-text"></span><span id="message-cursor">▼</span>
+    </div>
+
+    <div id="btn-area">
+      <div id="dir-pad">
+        <button class="dir-btn" onclick="move(0,-1)" style="grid-column:2;grid-row:1">▲</button>
+        <button class="dir-btn" onclick="move(-1,0)" style="grid-column:1;grid-row:2">◀</button>
+        <button class="dir-btn" onclick="interact()" style="grid-column:2;grid-row:2;font-size:13px">調べる</button>
+        <button class="dir-btn" onclick="move(1,0)" style="grid-column:3;grid-row:2">▶</button>
+        <button class="dir-btn" onclick="move(0,1)" style="grid-column:2;grid-row:3">▼</button>
+      </div>
+      <div class="btn-row">
+        <button onclick="openMenu()">メニュー</button>
+        <button onclick="saveGame()">セーブ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BATTLE SCREEN -->
+  <div id="battle-screen">
+    <div id="battle-bg">
+      <div id="enemy-area">
+        <div id="enemy-name">スライム</div>
+        <div id="enemy-sprite">🟢</div>
+        <div id="enemy-hp-wrap">
+          <div class="battle-stat">HP <span id="enemy-hp-val">10</span>/<span id="enemy-maxhp-val">10</span></div>
+          <div class="bar-bg"><div class="bar-fill" id="enemy-hp-bar" style="width:100%;background:linear-gradient(90deg,#e74c3c,#e91e63)"></div></div>
+        </div>
+      </div>
+      <!-- 姉（召喚ミニオン） -->
+      <div id="minion-area" style="display:none;flex-direction:column;align-items:center;gap:4px;margin-top:6px;padding:6px;border:1px solid #ff69b4;border-radius:6px;background:rgba(255,105,180,0.1);">
+        <div style="font-size:12px;color:#ff69b4;">👩 姉</div>
+        <div id="minion-sprite" style="font-size:36px;">👩</div>
+        <div style="width:80%">
+          <div class="battle-stat">HP <span id="minion-hp-val">80</span>/<span id="minion-maxhp-val">80</span></div>
+          <div class="bar-bg"><div class="bar-fill" id="minion-hp-bar" style="width:100%;background:linear-gradient(90deg,#e91e63,#ff69b4)"></div></div>
+        </div>
+      </div>
+      <div id="player-area">
+        <div style="font-size:12px;color:#aaa;">勇者</div>
+        <div id="player-sprite">🧙</div>
+      </div>
+    </div>
+    <div id="battle-msg">戦闘開始！</div>
+    <div id="battle-btns">
+      <button onclick="battleAction('attack')">⚔️ たたかう</button>
+      <button onclick="battleAction('magic')">✨ まほう</button>
+      <button onclick="battleAction('item')">🎒 どうぐ</button>
+      <button onclick="battleAction('run')">💨 にげる</button>
+      <button id="btn-sister" onclick="battleAction('sister')" style="display:none;grid-column:1/-1;background:#3d0030;border-color:#ff69b4;color:#ff69b4;">👩 姉を攻撃</button>
+    </div>
+  </div>
+
+  <!-- MENU SCREEN -->
+  <div id="menu-screen">
+    <div class="screen-title">メニュー</div>
+    <div id="menu-player-info" style="font-size:14px;color:#ccc;margin-bottom:8px;text-align:center;line-height:1.8;"></div>
+    <button class="menu-btn" onclick="showInventory()">🎒 どうぐばこ</button>
+    <button class="menu-btn" onclick="showStats()">📊 ステータス</button>
+    <button class="menu-btn" onclick="closeMenu()">← もどる</button>
+  </div>
+
+  <!-- SHOP SCREEN -->
+  <div id="shop-screen">
+    <div class="screen-title">🏪 みせ</div>
+    <div style="color:#aaa;font-size:13px;margin-bottom:8px;">所持金: <span id="shop-gold" style="color:#f9d56e;font-weight:bold"></span>G</div>
+    <ul class="item-list" id="shop-list"></ul>
+    <button class="menu-btn" style="margin-top:12px" onclick="closeShop()">← もどる</button>
+  </div>
+
+  <!-- INN SCREEN -->
+  <div id="inn-screen">
+    <div class="screen-title">🏨 やどや</div>
+    <div style="font-size:15px;color:#ccc;text-align:center;line-height:1.8;margin-bottom:16px;">
+      「おとまりですか？<br>1泊 <span style="color:#f9d56e">10G</span> でございます。」
+    </div>
+    <button class="menu-btn" onclick="stayInn()">はい (10G)</button>
+    <button class="menu-btn" onclick="closeInn()">いいえ</button>
+  </div>
+</div>
+
+<script>
+// =============================================
+// GAME DATA
+// =============================================
+const TILE = 32;
+const MAP_W = 20;
+const MAP_H = 20;
+
+// Tile types
+const T = { GRASS:0, WATER:1, TREE:2, WALL:3, FLOOR:4, TOWN:5, DUNGEON:6, STAIRS:7 };
+const TILE_COLORS = {
+  [T.GRASS]:  '#2d6a2d',
+  [T.WATER]:  '#1565c0',
+  [T.TREE]:   '#1b4d1b',
+  [T.WALL]:   '#5d4037',
+  [T.FLOOR]:  '#8d6e63',
+  [T.TOWN]:   '#ef9a9a',
+  [T.DUNGEON]:'#4a148c',
+  [T.STAIRS]: '#ffee58',
+};
+const TILE_EMOJI = {
+  [T.GRASS]:  '',
+  [T.WATER]:  '🌊',
+  [T.TREE]:   '🌲',
+  [T.WALL]:   '',
+  [T.FLOOR]:  '',
+  [T.TOWN]:   '🏘️',
+  [T.DUNGEON]:'⛩️',
+  [T.STAIRS]: '🔽',
+};
+const TILE_WALKABLE = {
+  [T.GRASS]:true, [T.WATER]:false, [T.TREE]:false,
+  [T.WALL]:false, [T.FLOOR]:true, [T.TOWN]:true,
+  [T.DUNGEON]:true, [T.STAIRS]:true,
+};
+
+// World map
+const WORLD_MAP = [
+  [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+  [2,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,2],
+  [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+  [2,0,0,5,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,2],
+  [2,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,2,0,2],
+  [2,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,2],
+  [2,0,2,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,2],
+  [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+  [2,0,0,0,0,0,0,0,0,0,0,0,0,2,2,0,0,0,0,2],
+  [2,0,0,0,0,0,0,0,0,0,0,0,0,2,2,0,0,0,0,2],
+  [2,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,2],
+  [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+  [2,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,2],
+  [2,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,5,0,0,2],
+  [2,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,2],
+  [2,0,0,0,2,6,2,0,0,0,0,0,0,0,0,0,0,0,0,2],
+  [2,0,0,0,2,0,2,0,0,0,0,0,0,0,0,0,0,2,0,2],
+  [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,2],
+  [2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2],
+  [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],
+];
+
+// Town maps (indoor)
+const TOWN1_MAP = [
+  [3,3,3,3,3,3,3,3,3,3],
+  [3,4,4,4,4,4,4,4,4,3],
+  [3,4,4,4,4,4,4,4,4,3],
+  [3,4,3,3,4,4,3,3,4,3],
+  [3,4,3,4,4,4,4,3,4,3],
+  [3,4,3,4,4,4,4,3,4,3],
+  [3,4,3,3,4,4,3,3,4,3],
+  [3,4,4,4,4,4,4,4,4,3],
+  [3,4,4,4,7,4,4,4,4,3],
+  [3,3,3,3,3,3,3,3,3,3],
+];
+
+// Dungeon map
+const DUNGEON_MAP = [
+  [3,3,3,3,3,3,3,3,3,3],
+  [3,4,4,4,3,4,4,4,4,3],
+  [3,4,3,4,3,4,3,3,4,3],
+  [3,4,3,4,4,4,4,4,4,3],
+  [3,4,3,3,3,3,3,4,3,3],
+  [3,4,4,4,4,4,3,4,4,3],
+  [3,3,3,4,3,4,3,3,4,3],
+  [3,4,4,4,3,4,4,4,4,3],
+  [3,4,3,3,3,3,3,3,7,3],
+  [3,3,3,3,3,3,3,3,3,3],
+];
+
+// NPCs per map
+const NPCS = {
+  world: [
+    { x:4, y:3, emoji:'👴', name:'老人', msg:'「魔王が東の砦に現れたと聞いた。気をつけるのじゃ。」' },
+    { x:16, y:13, emoji:'👩', name:'村人', msg:'「ここは第二の村。やどやがあるよ。」' },
+  ],
+  town1: [
+    { x:2, y:4, emoji:'🧙‍♂️', name:'賢者', msg:'「まほうを使えば敵に大ダメージを与えられる！」' },
+    { x:7, y:4, emoji:'🏪', name:'商人', msg:'「いらっしゃい！」', shop: true },
+    { x:4, y:7, emoji:'🏨', name:'宿屋', msg:'「おやすみなさいませ。」', inn: true },
+  ],
+  town2: [
+    { x:2, y:2, emoji:'🏪', name:'武器商人', msg:'「最強の武器があるよ！」', shop: true },
+    { x:7, y:2, emoji:'🏨', name:'宿屋', msg:'「どうぞごゆっくり。」', inn: true },
+    { x:4, y:6, emoji:'⚔️', name:'騎士', msg:'「魔王の砦は北の地下ダンジョンにあるという。」' },
+  ],
+  dungeon: [
+    { x:8, y:7, emoji:'😈', name:'ラムキミフシト', boss: true },
+    { x:1, y:7, emoji:'🧝', name:'伝説の商人', msg:'「ここだけの話、伝説のアイテムを売っている。欲しければ買え。」', shop: true, shopType: 'legend' },
+  ],
+};
+
+// Shop items
+const SHOP_ITEMS = {
+  basic: [
+    { name:'やくそう',    cost:8,  type:'item', effect:'hp', val:30 },
+    { name:'どくけしそう', cost:10, type:'item', effect:'cure', val:0 },
+    { name:'マジックハーブ',cost:15, type:'item', effect:'mp', val:10 },
+    { name:'たびびとのふく',cost:30, type:'equip', slot:'armor', def:3, label:'防具(防御+3)' },
+    { name:'どうのつるぎ', cost:50, type:'equip', slot:'weapon', atk:4, label:'武器(攻撃+4)' },
+  ],
+  adv: [
+    { name:'やくそう',    cost:8,  type:'item', effect:'hp', val:30 },
+    { name:'ハイポーション',cost:30, type:'item', effect:'hp', val:100 },
+    { name:'マジックハーブ',cost:15, type:'item', effect:'mp', val:10 },
+    { name:'てつのつるぎ', cost:100, type:'equip', slot:'weapon', atk:8, label:'武器(攻撃+8)' },
+    { name:'てつのよろい', cost:120, type:'equip', slot:'armor', def:6, label:'防具(防御+6)' },
+    { name:'まほうのたて', cost:80,  type:'equip', slot:'shield', def:4, label:'盾(防御+4)' },
+  ],
+  legend: [
+    { name:'メルセデスソード',     cost:888, type:'equip', slot:'weapon',   atk:35, label:'✨伝説の武器 メルセデスソード(攻撃+35)' },
+    { name:'スウェット（ミキハウス）',cost:666, type:'equip', slot:'armor',  def:25, label:'✨伝説の防具 スウェット(防御+25)' },
+    { name:'ロレックス（中古）',    cost:500, type:'equip', slot:'bracelet', def:10, label:'✨伝説の腕輪 ロレックス（中古）(防御+10)' },
+    { name:'ベンツCLA',            cost:999, type:'equip', slot:'vehicle',  label:'✨伝説の乗り物 ベンツCLA(エンカウント大幅減)' },
+  ],
+};
+
+// Enemies per area
+const ENEMIES = {
+  world: [
+    { name:'スライム',   emoji:'🟢', hp:8,  atk:3,  def:1,  exp:5,  gold:3  },
+    { name:'こうもり',   emoji:'🦇', hp:12, atk:5,  def:1,  exp:8,  gold:5  },
+    { name:'おおかみ',   emoji:'🐺', hp:20, atk:8,  def:2,  exp:12, gold:8  },
+  ],
+  dungeon: [
+    { name:'ゴブリン',   emoji:'👺', hp:30, atk:12, def:4,  exp:20, gold:15 },
+    { name:'スケルトン', emoji:'💀', hp:40, atk:15, def:6,  exp:30, gold:20 },
+    { name:'ドラゴン',   emoji:'🐉', hp:60, atk:20, def:8,  exp:50, gold:35 },
+  ],
+};
+
+const BOSS = {
+  name:'ラムキミフシト', emoji:'😈', hp:200, atk:25, def:10, exp:500, gold:300,
+  phases:[
+    { threshold:0.7, msg:'「くっ…！姉よ、力を貸せ！」', atkBoost:5, summon: true },
+    { threshold:0.4, msg:'「まだまだぁ！二人がかりで叩き潰す！」', atkBoost:10 },
+  ],
+};
+const BOSS_MINION = {
+  name:'姉', emoji:'👩', hp:80, maxHp:80, atk:15, def:5,
+};
+
+// =============================================
+// GAME STATE
+// =============================================
+let G = {};
+let currentMap = null; // array
+let currentMapName = 'world';
+let canvas, ctx;
+let msgQueue = [];
+let msgTimer = null;
+let battleEnemy = null;
+let bossMinion = null; // 姉
+let battlePhase = 0;
+let playerTurn = true;
+let battleLocked = false;
+
+function defaultState() {
+  return {
+    player: {
+      name: '勇者',
+      lv: 1,
+      hp: 25, maxHp: 25,
+      mp: 10, maxMp: 10,
+      atk: 8, def: 3,
+      exp: 0, nextExp: 20,
+      gold: 50,
+      weapon: null, armor: null, shield: null, bracelet: null, vehicle: null,
+      items: [],
+      status: null, // 'poison'
+    },
+    pos: { x:3, y:3, mapName:'world' },
+    flags: {
+      defeatedBoss: false,
+      visitedTown1: false,
+      visitedTown2: false,
+      visitedDungeon: false,
+    },
+  };
+}
+
+// =============================================
+// INIT
+// =============================================
+window.onload = function() {
+  canvas = document.getElementById('map-canvas');
+  ctx = canvas.getContext('2d');
+
+  // Check saved data
+  if (localStorage.getItem('rpg_save')) {
+    document.getElementById('btn-continue').disabled = false;
+  }
+  showScreen('title-screen');
+};
+
+function showScreen(id) {
+  ['title-screen','main-screen','battle-screen','menu-screen','shop-screen','inn-screen'].forEach(s => {
+    document.getElementById(s).style.display = 'none';
+  });
+  document.getElementById(id).style.display = 'flex';
+}
+
+// =============================================
+// TITLE / SAVE / LOAD
+// =============================================
+function startNewGame() {
+  G = defaultState();
+  initMap();
+  showScreen('main-screen');
+  showMsg('旅が始まった！\n村の人に話しかけてみよう。');
+}
+
+function saveGame() {
+  localStorage.setItem('rpg_save', JSON.stringify(G));
+  showNotif('セーブしました！');
+}
+
+function loadGame() {
+  try {
+    const data = JSON.parse(localStorage.getItem('rpg_save'));
+    G = data;
+    initMap();
+    showScreen('main-screen');
+    showMsg('セーブデータを読み込みました。');
+  } catch(e) {
+    showNotif('データ読み込み失敗');
+  }
+}
+
+// =============================================
+// MAP INIT & RENDER
+// =============================================
+function initMap() {
+  const mapName = G.pos.mapName;
+  if (mapName === 'world')   currentMap = WORLD_MAP;
+  else if (mapName === 'town1') currentMap = TOWN1_MAP;
+  else if (mapName === 'town2') {
+    currentMap = TOWN1_MAP; // reuse layout
+  }
+  else if (mapName === 'dungeon') currentMap = DUNGEON_MAP;
+  currentMapName = mapName;
+  resizeCanvas();
+  updateStatus();
+  renderMap();
+}
+
+function resizeCanvas() {
+  const mapArea = document.getElementById('map-area');
+  const w = mapArea.clientWidth;
+  const h = mapArea.clientHeight || 220;
+  canvas.width = w;
+  canvas.height = h;
+}
+
+function renderMap() {
+  if (!currentMap) return;
+  const px = G.pos.x, py = G.pos.y;
+  const cols = Math.ceil(canvas.width / TILE) + 2;
+  const rows = Math.ceil(canvas.height / TILE) + 2;
+  const startX = Math.max(0, px - Math.floor(cols/2));
+  const startY = Math.max(0, py - Math.floor(rows/2));
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const mapH = currentMap.length, mapW = currentMap[0].length;
+  const offX = Math.floor(canvas.width/2) - px * TILE - TILE/2;
+  const offY = Math.floor(canvas.height/2) - py * TILE - TILE/2;
+
+  for (let ty = 0; ty < mapH; ty++) {
+    for (let tx = 0; tx < mapW; tx++) {
+      const t = currentMap[ty][tx];
+      const sx = tx * TILE + offX;
+      const sy = ty * TILE + offY;
+      if (sx < -TILE || sx > canvas.width || sy < -TILE || sy > canvas.height) continue;
+
+      ctx.fillStyle = TILE_COLORS[t] || '#000';
+      ctx.fillRect(sx, sy, TILE, TILE);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+      ctx.strokeRect(sx, sy, TILE, TILE);
+
+      const em = TILE_EMOJI[t];
+      if (em) {
+        ctx.font = `${TILE-4}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(em, sx + TILE/2, sy + TILE/2);
+      }
+    }
+  }
+
+  // NPCs
+  const npcs = NPCS[currentMapName] || [];
+  npcs.forEach(npc => {
+    const sx = npc.x * TILE + offX;
+    const sy = npc.y * TILE + offY;
+    if (npc.boss && G.flags.defeatedBoss) return;
+    ctx.font = `${TILE-4}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(npc.emoji, sx + TILE/2, sy + TILE/2);
+  });
+
+  // Player
+  const psx = px * TILE + offX;
+  const psy = py * TILE + offY;
+  ctx.font = `${TILE-4}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🧙', psx + TILE/2, psy + TILE/2);
+}
+
+// =============================================
+// MOVEMENT
+// =============================================
+function move(dx, dy) {
+  if (msgQueue.length > 0) { nextMsg(); return; }
+
+  const nx = G.pos.x + dx;
+  const ny = G.pos.y + dy;
+  const mapH = currentMap.length, mapW = currentMap[0].length;
+  if (nx < 0 || nx >= mapW || ny < 0 || ny >= mapH) return;
+
+  const t = currentMap[ny][nx];
+  if (!TILE_WALKABLE[t]) return;
+
+  // Check NPC collision
+  const npcs = NPCS[currentMapName] || [];
+  const npc = npcs.find(n => n.x === nx && n.y === ny && !(n.boss && G.flags.defeatedBoss));
+  if (npc) {
+    talkToNPC(npc);
+    return;
+  }
+
+  G.pos.x = nx;
+  G.pos.y = ny;
+  renderMap();
+
+  // Stairs / special tiles
+  if (t === T.STAIRS) {
+    handleStairs();
+    return;
+  }
+
+  // Random encounter on grass/floor/dungeon
+  if ((t === T.GRASS || t === T.FLOOR) && currentMapName !== 'town1' && currentMapName !== 'town2') {
+    const hasVehicle = !!G.player.vehicle;
+    const base = currentMapName === 'dungeon' ? 0.3 : 0.15;
+    const rate = hasVehicle ? base * 0.2 : base;
+    if (Math.random() < rate) {
+      setTimeout(() => startBattle(), 200);
+    }
+  }
+
+  // Poison tick
+  if (G.player.status === 'poison') {
+    const dmg = Math.max(1, Math.floor(G.player.maxHp * 0.05));
+    G.player.hp = Math.max(1, G.player.hp - dmg);
+    updateStatus();
+    if (G.player.hp <= 1) showMsg('毒のダメージを受けた！\nHPが危険！');
+  }
+
+  clearMsg();
+}
+
+function handleStairs() {
+  if (currentMapName === 'world') {
+    // shouldn't happen in world
+  } else {
+    // Go back to world
+    G.pos.mapName = 'world';
+    if (currentMapName === 'town1') { G.pos.x = 3; G.pos.y = 3; }
+    else if (currentMapName === 'town2') { G.pos.x = 16; G.pos.y = 13; }
+    else if (currentMapName === 'dungeon') { G.pos.x = 5; G.pos.y = 15; }
+    initMap();
+    showMsg('ワールドマップに戻った。');
+  }
+}
+
+// =============================================
+// INTERACT
+// =============================================
+function interact() {
+  if (msgQueue.length > 0) { nextMsg(); return; }
+
+  // Check adjacent NPCs
+  const dirs = [[0,0],[1,0],[-1,0],[0,1],[0,-1]];
+  const npcs = NPCS[currentMapName] || [];
+  for (const [dx,dy] of dirs) {
+    const nx = G.pos.x + dx, ny = G.pos.y + dy;
+    const npc = npcs.find(n => n.x === nx && n.y === ny && !(n.boss && G.flags.defeatedBoss));
+    if (npc) { talkToNPC(npc); return; }
+  }
+
+  // Check tile under player
+  const t = currentMap[G.pos.y][G.pos.x];
+  if (t === T.TOWN) {
+    if (currentMapName === 'world') {
+      const townNear = G.pos.x < 10 ? 'town1' : 'town2';
+      enterTown(townNear);
+    }
+  } else if (t === T.DUNGEON) {
+    enterDungeon();
+  } else {
+    showMsg('ここには何もない…');
+  }
+}
+
+function talkToNPC(npc) {
+  if (npc.boss) {
+    startBossBattle();
+    return;
+  }
+  if (npc.shop) {
+    showMsg(npc.msg);
+    const type = npc.shopType || (npc.name === '武器商人' ? 'adv' : 'basic');
+    setTimeout(() => openShop(type), 800);
+    return;
+  }
+  if (npc.inn) {
+    showMsg(npc.msg);
+    setTimeout(() => openInn(), 800);
+    return;
+  }
+  showMsg(npc.msg);
+
+  // Flag first visits
+  if (!G.flags.visitedTown1 && currentMapName === 'town1') {
+    G.flags.visitedTown1 = true;
+  }
+}
+
+function enterTown(name) {
+  G.pos.mapName = name;
+  G.pos.x = 4; G.pos.y = 8;
+  initMap();
+  showMsg(name === 'town1' ? '最初の村に入った。\n人々に話しかけてみよう。' : '第二の村に入った。');
+}
+
+function enterDungeon() {
+  G.pos.mapName = 'dungeon';
+  G.pos.x = 1; G.pos.y = 1;
+  initMap();
+  if (!G.flags.visitedDungeon) {
+    G.flags.visitedDungeon = true;
+    showMsg('ダンジョンに入った！\n魔王がいるという…\n覚悟を決めて進め！');
+  } else {
+    showMsg('ダンジョンに入った。');
+  }
+}
+
+// =============================================
+// MESSAGES
+// =============================================
+function showMsg(text) {
+  const lines = text.split('\n');
+  msgQueue = lines;
+  displayNextMsg();
+}
+
+function displayNextMsg() {
+  if (msgQueue.length === 0) {
+    document.getElementById('message-cursor').style.display = 'none';
+    return;
+  }
+  document.getElementById('message-cursor').style.display = 'inline';
+  document.getElementById('message-text').textContent = msgQueue[0];
+}
+
+function nextMsg() {
+  msgQueue.shift();
+  if (msgQueue.length === 0) {
+    document.getElementById('message-cursor').style.display = 'none';
+    document.getElementById('message-text').textContent = '';
+  } else {
+    displayNextMsg();
+  }
+}
+
+function clearMsg() {
+  msgQueue = [];
+  document.getElementById('message-text').textContent = '';
+  document.getElementById('message-cursor').style.display = 'none';
+}
+
+function showNotif(text) {
+  const el = document.getElementById('notif');
+  el.textContent = text;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// =============================================
+// STATUS UPDATE
+// =============================================
+function updateStatus() {
+  const p = G.player;
+  document.getElementById('stat-lv').textContent = p.lv;
+  document.getElementById('stat-hp').textContent = p.hp;
+  document.getElementById('stat-maxhp').textContent = p.maxHp;
+  document.getElementById('stat-mp').textContent = p.mp;
+  document.getElementById('stat-maxmp').textContent = p.maxMp;
+  document.getElementById('stat-gold').textContent = p.gold;
+  document.getElementById('hp-bar').style.width = Math.max(0,(p.hp/p.maxHp*100)) + '%';
+  document.getElementById('mp-bar').style.width = Math.max(0,(p.mp/p.maxMp*100)) + '%';
+}
+
+// =============================================
+// BATTLE
+// =============================================
+function getEnemyList() {
+  return currentMapName === 'dungeon' ? ENEMIES.dungeon : ENEMIES.world;
+}
+
+function startBattle() {
+  const list = getEnemyList();
+  battleEnemy = JSON.parse(JSON.stringify(list[Math.floor(Math.random() * list.length)]));
+  battleEnemy.maxHp = battleEnemy.hp;
+  battlePhase = 0;
+  playerTurn = true;
+  battleLocked = false;
+  showBattleScreen();
+}
+
+function startBossBattle() {
+  battleEnemy = JSON.parse(JSON.stringify(BOSS));
+  battleEnemy.maxHp = battleEnemy.hp;
+  bossMinion = null;
+  battlePhase = 0;
+  playerTurn = true;
+  battleLocked = false;
+  hideMinionArea();
+  showBattleScreen();
+}
+
+function hideMinionArea() {
+  document.getElementById('minion-area').style.display = 'none';
+  document.getElementById('btn-sister').style.display = 'none';
+}
+
+function showMinionArea() {
+  document.getElementById('minion-area').style.display = 'flex';
+  document.getElementById('btn-sister').style.display = 'block';
+  updateMinionUI();
+}
+
+function updateMinionUI() {
+  if (!bossMinion) return;
+  document.getElementById('minion-hp-val').textContent = Math.max(0, bossMinion.hp);
+  document.getElementById('minion-maxhp-val').textContent = bossMinion.maxHp;
+  document.getElementById('minion-hp-bar').style.width = Math.max(0, bossMinion.hp / bossMinion.maxHp * 100) + '%';
+}
+
+function showBattleScreen() {
+  showScreen('battle-screen');
+  document.getElementById('enemy-name').textContent = battleEnemy.name;
+  document.getElementById('enemy-sprite').textContent = battleEnemy.emoji;
+  updateBattleUI();
+  setBattleMsg(`${battleEnemy.name}があらわれた！`);
+  enableBattleButtons(true);
+}
+
+function updateBattleUI() {
+  const e = battleEnemy;
+  document.getElementById('enemy-hp-val').textContent = Math.max(0,e.hp);
+  document.getElementById('enemy-maxhp-val').textContent = e.maxHp;
+  document.getElementById('enemy-hp-bar').style.width = Math.max(0,e.hp/e.maxHp*100)+'%';
+  updateStatus();
+}
+
+function setBattleMsg(text) {
+  document.getElementById('battle-msg').textContent = text;
+}
+
+function enableBattleButtons(en) {
+  document.querySelectorAll('#battle-btns button').forEach(b => b.disabled = !en);
+}
+
+async function battleAction(action) {
+  if (!playerTurn || battleLocked) return;
+  battleLocked = true;
+  enableBattleButtons(false);
+
+  const p = G.player;
+  let msg = '';
+
+  if (action === 'attack') {
+    const dmg = Math.max(1, p.atk + (p.weapon ? p.weapon.atk : 0) - battleEnemy.def + Math.floor(Math.random()*4)-1);
+    battleEnemy.hp -= dmg;
+    document.getElementById('enemy-sprite').classList.add('shake');
+    setTimeout(() => document.getElementById('enemy-sprite').classList.remove('shake'), 350);
+    msg = `${battleEnemy.name}に ${dmg} のダメージ！`;
+
+  } else if (action === 'magic') {
+    const mpCost = 4;
+    if (p.mp < mpCost) { setBattleMsg('MPが足りない！'); battleLocked=false; enableBattleButtons(true); return; }
+    p.mp -= mpCost;
+    const dmg = Math.max(1, p.atk * 2 - Math.floor(battleEnemy.def/2) + Math.floor(Math.random()*6));
+    battleEnemy.hp -= dmg;
+    document.getElementById('enemy-sprite').classList.add('shake');
+    setTimeout(() => document.getElementById('enemy-sprite').classList.remove('shake'), 350);
+    msg = `メラ！ ${battleEnemy.name}に ${dmg} のダメージ！`;
+
+  } else if (action === 'item') {
+    const healItems = p.items.filter(i => i.effect === 'hp' || i.effect === 'mp' || i.effect === 'cure');
+    if (healItems.length === 0) { setBattleMsg('使えるどうぐがない！'); battleLocked=false; enableBattleButtons(true); return; }
+    const item = healItems[0];
+    useItem(item);
+    msg = `${item.name}を使った！`;
+    battleLocked = false;
+    updateBattleUI();
+    setBattleMsg(msg);
+    await wait(1000);
+    enemyTurn();
+    return;
+
+  } else if (action === 'sister') {
+    if (!bossMinion || bossMinion.hp <= 0) { setBattleMsg('姉はもういない！'); battleLocked=false; enableBattleButtons(true); return; }
+    const dmg = Math.max(1, p.atk + (p.weapon ? p.weapon.atk : 0) - bossMinion.def + Math.floor(Math.random()*4)-1);
+    bossMinion.hp -= dmg;
+    document.getElementById('minion-sprite').classList? document.getElementById('enemy-sprite').classList.add('shake') : null;
+    msg = `姉に ${dmg} のダメージ！`;
+    if (bossMinion.hp <= 0) {
+      updateMinionUI();
+      setBattleMsg('姉をたおした！\n「うそ…！お兄ちゃん(お姉ちゃん)！？」');
+      document.getElementById('minion-area').style.opacity = '0.4';
+      document.getElementById('btn-sister').disabled = true;
+      await wait(1500);
+    } else {
+      updateMinionUI();
+      setBattleMsg(msg);
+      await wait(1000);
+    }
+    enemyTurn();
+    return;
+
+  } else if (action === 'run') {
+    const chance = Math.random();
+    if (battleEnemy.name === BOSS.name) {
+      setBattleMsg('ラムキミフシトからは逃げられない！');
+      battleLocked = false;
+      enableBattleButtons(true);
+      return;
+    }
+    if (chance < 0.5) {
+      setBattleMsg('うまく逃げられた！');
+      await wait(1200);
+      endBattle(false);
+      return;
+    } else {
+      msg = '逃げられなかった！';
+    }
+  }
+
+  updateBattleUI();
+
+  // Boss phase check
+  if (battleEnemy.name === BOSS.name) {
+    checkBossPhase(msg);
+  }
+
+  setBattleMsg(msg);
+  await wait(1000);
+
+  if (battleEnemy.hp <= 0) {
+    winBattle();
+    return;
+  }
+
+  enemyTurn();
+}
+
+function checkBossPhase(msg) {
+  const ratio = battleEnemy.hp / battleEnemy.maxHp;
+  BOSS.phases.forEach((phase, i) => {
+    if (ratio <= phase.threshold && battlePhase <= i) {
+      battlePhase = i + 1;
+      battleEnemy.atk += phase.atkBoost;
+      let phaseMsg = msg + '\n' + phase.msg;
+      if (phase.summon && !bossMinion) {
+        bossMinion = JSON.parse(JSON.stringify(BOSS_MINION));
+        showMinionArea();
+        phaseMsg += '\n姉が召喚された！';
+      }
+      setBattleMsg(phaseMsg);
+    }
+  });
+}
+
+async function enemyTurn() {
+  playerTurn = false;
+  await wait(600);
+
+  const p = G.player;
+  const def = p.def + (p.armor ? p.armor.def : 0) + (p.shield ? p.shield.def : 0) + (p.bracelet ? p.bracelet.def : 0);
+  const dmg = Math.max(1, battleEnemy.atk - def + Math.floor(Math.random()*4)-1);
+  p.hp = Math.max(0, p.hp - dmg);
+
+  let msgs = [];
+  // Chance of poison (dungeon only)
+  if (currentMapName === 'dungeon' && Math.random() < 0.1 && !p.status) {
+    p.status = 'poison';
+    msgs.push(`${battleEnemy.name}の攻撃！${dmg}のダメージ！ 毒を受けた！`);
+  } else {
+    msgs.push(`${battleEnemy.name}の攻撃！${dmg}のダメージ！`);
+  }
+
+  // 姉の攻撃
+  if (bossMinion && bossMinion.hp > 0) {
+    const sdmg = Math.max(1, bossMinion.atk - def + Math.floor(Math.random()*3));
+    p.hp = Math.max(0, p.hp - sdmg);
+    msgs.push(`姉の攻撃！${sdmg}のダメージ！`);
+  }
+
+  updateBattleUI();
+  setBattleMsg(msgs.join('\n'));
+
+  if (p.hp <= 0) {
+    await wait(1000);
+    gameOver();
+    return;
+  }
+
+  await wait(1200);
+  playerTurn = true;
+  battleLocked = false;
+  enableBattleButtons(true);
+  setBattleMsg('どうする？');
+}
+
+async function winBattle() {
+  const p = G.player;
+  const e = battleEnemy;
+  p.exp += e.exp;
+  p.gold += e.gold;
+  updateStatus();
+  setBattleMsg(`${e.name}をたおした！\n${e.exp}EXP と ${e.gold}G を手に入れた！`);
+  await wait(1500);
+
+  if (e.name === BOSS.name) {
+    G.flags.defeatedBoss = true;
+    bossMinion = null;
+    hideMinionArea();
+    setBattleMsg('ラムキミフシトをたおした！\n「な…なぜだ…ベンツがあれば…」\n世界に平和が戻った！！');
+    await wait(2500);
+    showOverlay('おめでとう！','ラムキミフシトを倒し、\n世界に平和が戻りました！\n\nあなたは真の勇者だ！',
+      [{label:'タイトルに戻る', fn:'backToTitle()'}]);
+    return;
+  }
+
+  // Level up check
+  while (p.exp >= p.nextExp) {
+    await levelUp();
+  }
+
+  endBattle(true);
+}
+
+async function levelUp() {
+  const p = G.player;
+  p.lv++;
+  p.exp -= p.nextExp;
+  p.nextExp = Math.floor(p.nextExp * 1.5);
+  p.maxHp += 8 + Math.floor(Math.random()*5);
+  p.maxMp += 3 + Math.floor(Math.random()*3);
+  p.hp = p.maxHp;
+  p.mp = p.maxMp;
+  p.atk += 2 + Math.floor(Math.random()*2);
+  p.def += 1;
+  setBattleMsg(`レベルアップ！ Lv.${p.lv} になった！\nHP・MPが全回復！`);
+  await wait(1800);
+}
+
+function gameOver() {
+  G.player.hp = Math.floor(G.player.maxHp / 2);
+  G.player.gold = Math.floor(G.player.gold / 2);
+  G.player.status = null;
+  G.pos = { x:3, y:3, mapName:'world' };
+  showOverlay('ゲームオーバー','力尽きてしまった…\nHPとGoldが半分になり、\n最初の村の近くで目覚めた。',
+    [{label:'続ける', fn:'resumeFromDeath()'}]);
+}
+
+function resumeFromDeath() {
+  closeOverlay();
+  initMap();
+  showScreen('main-screen');
+  updateStatus();
+  showMsg('…目が覚めた。');
+}
+
+function endBattle(won) {
+  battleEnemy = null;
+  initMap();
+  showScreen('main-screen');
+  if (won) updateStatus();
+}
+
+function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// =============================================
+// MENU
+// =============================================
+function openMenu() {
+  const p = G.player;
+  const wn = p.weapon ? p.weapon.name : 'なし';
+  const an = p.armor ? p.armor.name : 'なし';
+  const bn = p.bracelet ? p.bracelet.name : 'なし';
+  const vn = p.vehicle ? p.vehicle.name : 'なし';
+  document.getElementById('menu-player-info').innerHTML =
+    `名前: ${p.name} &nbsp; Lv.${p.lv}<br>` +
+    `HP: ${p.hp}/${p.maxHp} &nbsp; MP: ${p.mp}/${p.maxMp}<br>` +
+    `攻撃: ${p.atk} &nbsp; 防御: ${p.def}<br>` +
+    `EXP: ${p.exp}/${p.nextExp}<br>` +
+    `武器: ${wn} &nbsp; 防具: ${an}<br>` +
+    `腕輪: ${bn} &nbsp; 乗り物: ${vn}<br>` +
+    `所持金: ${p.gold}G`;
+  showScreen('menu-screen');
+}
+
+function closeMenu() { initMap(); showScreen('main-screen'); }
+
+function showInventory() {
+  const p = G.player;
+  if (p.items.length === 0) {
+    showOverlay('どうぐばこ','どうぐを持っていない。',[{label:'とじる',fn:'closeOverlay()'}]);
+    return;
+  }
+  const list = p.items.map((item,i)=>`${i+1}. ${item.name}`).join('\n');
+  showOverlay('どうぐばこ',list,[
+    {label:'つかう', fn:'useItemFromMenu()'},
+    {label:'とじる', fn:'closeOverlay()'},
+  ]);
+}
+
+function useItemFromMenu() {
+  closeOverlay();
+  const p = G.player;
+  const healItems = p.items.filter(i => i.effect === 'hp' || i.effect === 'mp' || i.effect === 'cure');
+  if (healItems.length === 0) { showNotif('使えるどうぐがない'); return; }
+  const item = healItems[0];
+  useItem(item);
+  showNotif(`${item.name}を使った！`);
+  updateStatus();
+}
+
+function useItem(item) {
+  const p = G.player;
+  if (item.effect === 'hp') {
+    p.hp = Math.min(p.maxHp, p.hp + item.val);
+  } else if (item.effect === 'mp') {
+    p.mp = Math.min(p.maxMp, p.mp + item.val);
+  } else if (item.effect === 'cure') {
+    p.status = null;
+  }
+  const idx = p.items.indexOf(item);
+  if (idx !== -1) p.items.splice(idx, 1);
+}
+
+function showStats() {
+  const p = G.player;
+  const info = `名前: ${p.name}\nレベル: ${p.lv}\n\nHP: ${p.hp}/${p.maxHp}\nMP: ${p.mp}/${p.maxMp}\n\n攻撃力: ${p.atk}${p.weapon?` (+${p.weapon.atk})`:''}\n防御力: ${p.def}${p.armor?` (+${p.armor.def})`:''}\n腕輪: ${p.bracelet?p.bracelet.name:'なし'}${p.bracelet?` (防御+${p.bracelet.def})`:''}\n乗り物: ${p.vehicle?p.vehicle.name:'なし'}${p.vehicle?' (エンカウント大幅減)':''}\n\n経験値: ${p.exp}/${p.nextExp}\n所持金: ${p.gold}G\n\n状態: ${p.status ? '毒' : 'よい'}`;
+  showOverlay('ステータス', info, [{label:'とじる', fn:'closeOverlay()'}]);
+}
+
+// =============================================
+// SHOP
+// =============================================
+function openShop(type) {
+  const items = SHOP_ITEMS[type] || SHOP_ITEMS.basic;
+  document.getElementById('shop-gold').textContent = G.player.gold;
+  const list = document.getElementById('shop-list');
+  list.innerHTML = '';
+  items.forEach(item => {
+    const li = document.createElement('li');
+    const label = item.label || item.name;
+    li.innerHTML = `<span>${label}</span><span class="item-cost">${item.cost}G</span>`;
+    li.onclick = () => buyItem(item, type);
+    list.appendChild(li);
+  });
+  showScreen('shop-screen');
+}
+
+function buyItem(item, type) {
+  const p = G.player;
+  if (p.gold < item.cost) { showNotif('お金が足りない！'); return; }
+  p.gold -= item.cost;
+  if (item.type === 'item') {
+    p.items.push({...item});
+    showNotif(`${item.name}を買った！`);
+  } else if (item.type === 'equip') {
+    p[item.slot] = item;
+    showNotif(`${item.name}を装備した！`);
+  }
+  document.getElementById('shop-gold').textContent = p.gold;
+  updateStatus();
+}
+
+function closeShop() { showScreen('main-screen'); }
+
+// =============================================
+// INN
+// =============================================
+function openInn() { showScreen('inn-screen'); }
+
+function stayInn() {
+  const p = G.player;
+  if (p.gold < 10) { showNotif('お金が足りない！'); closeInn(); return; }
+  p.gold -= 10;
+  p.hp = p.maxHp;
+  p.mp = p.maxMp;
+  p.status = null;
+  updateStatus();
+  saveGame();
+  showNotif('HP・MPが全回復！セーブしました。');
+  closeInn();
+}
+
+function closeInn() { showScreen('main-screen'); }
+
+// =============================================
+// OVERLAY
+// =============================================
+function showOverlay(title, text, buttons) {
+  document.getElementById('overlay-title').textContent = title;
+  document.getElementById('overlay-text').innerHTML = text.replace(/\n/g,'<br>');
+  const btnsEl = document.getElementById('overlay-btns');
+  btnsEl.innerHTML = '';
+  buttons.forEach(b => {
+    const btn = document.createElement('button');
+    btn.textContent = b.label;
+    btn.onclick = new Function(b.fn);
+    btnsEl.appendChild(btn);
+  });
+  document.getElementById('overlay').classList.add('show');
+}
+
+function closeOverlay() {
+  document.getElementById('overlay').classList.remove('show');
+}
+
+function backToTitle() {
+  closeOverlay();
+  showScreen('title-screen');
+  if (localStorage.getItem('rpg_save')) {
+    document.getElementById('btn-continue').disabled = false;
+  }
+}
+
+// =============================================
+// KEYBOARD SUPPORT
+// =============================================
+document.addEventListener('keydown', e => {
+  if (document.getElementById('battle-screen').style.display !== 'none') return;
+  if (['ArrowUp','w','W'].includes(e.key)) move(0,-1);
+  else if (['ArrowDown','s','S'].includes(e.key)) move(0,1);
+  else if (['ArrowLeft','a','A'].includes(e.key)) move(-1,0);
+  else if (['ArrowRight','d','D'].includes(e.key)) move(1,0);
+  else if (['Enter',' '].includes(e.key)) interact();
+});
+
+// =============================================
+// RESIZE
+// =============================================
+window.addEventListener('resize', () => {
+  if (document.getElementById('main-screen').style.display !== 'none') {
+    resizeCanvas();
+    renderMap();
+  }
+});
+</script>
+</body>
+</html>
