@@ -371,6 +371,7 @@
   <div id="menu-screen">
     <div class="screen-title">メニュー</div>
     <div id="menu-player-info" style="font-size:14px;color:#ccc;margin-bottom:8px;text-align:center;line-height:1.8;"></div>
+    <button class="menu-btn" onclick="openEquip()">⚔️ そうび</button>
     <button class="menu-btn" onclick="showInventory()">🎒 どうぐばこ</button>
     <button class="menu-btn" onclick="showStats()">📊 ステータス</button>
     <button class="menu-btn" onclick="closeMenu()">← もどる</button>
@@ -382,6 +383,18 @@
     <div style="color:#aaa;font-size:13px;margin-bottom:8px;">所持金: <span id="shop-gold" style="color:#f9d56e;font-weight:bold"></span>G</div>
     <ul class="item-list" id="shop-list"></ul>
     <button class="menu-btn" style="margin-top:12px" onclick="closeShop()">← もどる</button>
+  </div>
+
+  <!-- EQUIP SCREEN -->
+  <div id="equip-screen" style="display:none;flex-direction:column;align-items:center;padding:16px 12px;gap:6px;flex:1;overflow-y:auto;">
+    <div class="screen-title" style="font-size:22px;">⚔️ そうび</div>
+    <div style="width:100%;max-width:360px;">
+      <div style="font-size:12px;color:#f9d56e;margin-bottom:6px;">▼ 現在の装備</div>
+      <div id="equip-slots-list" style="border:1px solid #e2b96f;border-radius:8px;overflow:hidden;margin-bottom:12px;"></div>
+      <div style="font-size:12px;color:#f9d56e;margin-bottom:6px;">▼ 所持している装備品（タップで装備）</div>
+      <div id="equip-bag-list" style="border:1px solid #555;border-radius:8px;overflow:hidden;margin-bottom:12px;"></div>
+    </div>
+    <button class="menu-btn" onclick="closeEquip()">← もどる</button>
   </div>
 
   <!-- INN SCREEN -->
@@ -486,8 +499,8 @@ const DUNGEON_MAP = [
 // NPCs per map
 const NPCS = {
   world: [
-    { x:4, y:3, emoji:'👴', name:'老人', msg:'「魔王が東の砦に現れたと聞いた。気をつけるのじゃ。」' },
-    { x:16, y:13, emoji:'👩', name:'村人', msg:'「ここは第二の村。やどやがあるよ。」' },
+    { x:6, y:2, emoji:'👴', name:'老人', msg:'「魔王ラムキミフシトが東の砦に現れたと聞いた。\n🏘️に近づけば村に入れるぞ。気をつけるのじゃ。」' },
+    { x:15, y:12, emoji:'👩', name:'村人', msg:'「ここは第二の村の近く。\n🏘️に近づけば村に入れるよ。」' },
   ],
   town1: [
     { x:2, y:4, emoji:'🧙‍♂️', name:'賢者', msg:'「まほうを使えば敵に大ダメージを与えられる！」' },
@@ -581,7 +594,8 @@ function defaultState() {
       exp: 0, nextExp: 20,
       gold: 50,
       weapon: null, armor: null, shield: null, bracelet: null, vehicle: null,
-      items: [],
+      items: [],   // 消耗品
+      equips: [],  // 未装備の装備品
       status: null, // 'poison'
     },
     pos: { x:3, y:3, mapName:'world' },
@@ -609,7 +623,7 @@ window.onload = function() {
 };
 
 function showScreen(id) {
-  ['title-screen','main-screen','battle-screen','menu-screen','shop-screen','inn-screen'].forEach(s => {
+  ['title-screen','main-screen','battle-screen','menu-screen','shop-screen','inn-screen','equip-screen'].forEach(s => {
     document.getElementById(s).style.display = 'none';
   });
   document.getElementById(id).style.display = 'flex';
@@ -620,9 +634,11 @@ function showScreen(id) {
 // =============================================
 function startNewGame() {
   G = defaultState();
-  initMap();
   showScreen('main-screen');
-  showMsg('旅が始まった！\n村の人に話しかけてみよう。');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    initMap();
+    showMsg('旅が始まった！\n🏘️の上で調べるか歩いて乗ると村に入れる！');
+  }));
 }
 
 function saveGame() {
@@ -634,9 +650,15 @@ function loadGame() {
   try {
     const data = JSON.parse(localStorage.getItem('rpg_save'));
     G = data;
-    initMap();
+    // 旧セーブデータとの互換性
+    if (!G.player.equips) G.player.equips = [];
+    if (G.player.bracelet === undefined) G.player.bracelet = null;
+    if (G.player.vehicle === undefined) G.player.vehicle = null;
     showScreen('main-screen');
-    showMsg('セーブデータを読み込みました。');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      initMap();
+      showMsg('セーブデータを読み込みました。');
+    }));
   } catch(e) {
     showNotif('データ読み込み失敗');
   }
@@ -647,16 +669,16 @@ function loadGame() {
 // =============================================
 function initMap() {
   const mapName = G.pos.mapName;
-  if (mapName === 'world')   currentMap = WORLD_MAP;
-  else if (mapName === 'town1') currentMap = TOWN1_MAP;
-  else if (mapName === 'town2') {
-    currentMap = TOWN1_MAP; // reuse layout
-  }
+  if (mapName === 'world')        currentMap = WORLD_MAP;
+  else if (mapName === 'town1')   currentMap = TOWN1_MAP;
+  else if (mapName === 'town2')   currentMap = TOWN1_MAP;
   else if (mapName === 'dungeon') currentMap = DUNGEON_MAP;
   currentMapName = mapName;
-  resizeCanvas();
   updateStatus();
-  renderMap();
+  requestAnimationFrame(() => {
+    resizeCanvas();
+    renderMap();
+  });
 }
 
 function resizeCanvas() {
@@ -758,6 +780,17 @@ function move(dx, dy) {
     return;
   }
 
+  // 村・ダンジョンに踏み込んだら自動入場
+  if (t === T.TOWN && currentMapName === 'world') {
+    const townNear = nx < 10 ? 'town1' : 'town2';
+    setTimeout(() => enterTown(townNear), 150);
+    return;
+  }
+  if (t === T.DUNGEON && currentMapName === 'world') {
+    setTimeout(() => enterDungeon(), 150);
+    return;
+  }
+
   // Random encounter on grass/floor/dungeon
   if ((t === T.GRASS || t === T.FLOOR) && currentMapName !== 'town1' && currentMapName !== 'town2') {
     const hasVehicle = !!G.player.vehicle;
@@ -799,8 +832,20 @@ function handleStairs() {
 function interact() {
   if (msgQueue.length > 0) { nextMsg(); return; }
 
-  // Check adjacent NPCs
-  const dirs = [[0,0],[1,0],[-1,0],[0,1],[0,-1]];
+  // まず自分の足元のタイルを確認（村・ダンジョン優先）
+  const t = currentMap[G.pos.y][G.pos.x];
+  if (t === T.TOWN && currentMapName === 'world') {
+    const townNear = G.pos.x < 10 ? 'town1' : 'town2';
+    enterTown(townNear);
+    return;
+  }
+  if (t === T.DUNGEON && currentMapName === 'world') {
+    enterDungeon();
+    return;
+  }
+
+  // 隣接NPCを調べる（正面4方向のみ）
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
   const npcs = NPCS[currentMapName] || [];
   for (const [dx,dy] of dirs) {
     const nx = G.pos.x + dx, ny = G.pos.y + dy;
@@ -808,18 +853,7 @@ function interact() {
     if (npc) { talkToNPC(npc); return; }
   }
 
-  // Check tile under player
-  const t = currentMap[G.pos.y][G.pos.x];
-  if (t === T.TOWN) {
-    if (currentMapName === 'world') {
-      const townNear = G.pos.x < 10 ? 'town1' : 'town2';
-      enterTown(townNear);
-    }
-  } else if (t === T.DUNGEON) {
-    enterDungeon();
-  } else {
-    showMsg('ここには何もない…');
-  }
+  showMsg('ここには何もない…');
 }
 
 function talkToNPC(npc) {
@@ -1235,6 +1269,86 @@ function openMenu() {
 
 function closeMenu() { initMap(); showScreen('main-screen'); }
 
+// =============================================
+// EQUIP SCREEN
+// =============================================
+const SLOT_LABELS = {
+  weapon:   { icon:'⚔️', name:'武器' },
+  armor:    { icon:'🛡️', name:'防具' },
+  shield:   { icon:'🔰', name:'盾' },
+  bracelet: { icon:'💍', name:'腕輪' },
+  vehicle:  { icon:'🚗', name:'乗り物' },
+};
+
+function openEquip() {
+  renderEquipScreen();
+  showScreen('equip-screen');
+}
+
+function renderEquipScreen() {
+  const p = G.player;
+
+  // 現在の装備スロット
+  const slotsEl = document.getElementById('equip-slots-list');
+  slotsEl.innerHTML = '';
+  Object.entries(SLOT_LABELS).forEach(([slot, info]) => {
+    const equipped = p[slot];
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid #333;font-size:13px;';
+    const slotLabel = `${info.icon} ${info.name}`;
+    const itemName = equipped ? `<span style="color:#f9d56e">${equipped.name}</span>` : `<span style="color:#555">なし</span>`;
+    const unequipBtn = equipped
+      ? `<button onclick="unequipSlot('${slot}')" style="font-size:11px;padding:4px 10px;background:#3d0000;border-color:#e74c3c;color:#e74c3c;">はずす</button>`
+      : '';
+    row.innerHTML = `<span style="color:#aaa;min-width:70px">${slotLabel}</span>${itemName}${unequipBtn}`;
+    slotsEl.appendChild(row);
+  });
+
+  // 所持装備品
+  const bagEl = document.getElementById('equip-bag-list');
+  bagEl.innerHTML = '';
+  if (!p.equips || p.equips.length === 0) {
+    bagEl.innerHTML = '<div style="padding:12px;color:#555;font-size:13px;text-align:center;">装備品を持っていない</div>';
+    return;
+  }
+  p.equips.forEach((item, idx) => {
+    const info = SLOT_LABELS[item.slot] || { icon:'❓', name:item.slot };
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid #333;font-size:13px;cursor:pointer;';
+    const stats = item.atk ? `攻撃+${item.atk}` : item.def ? `防御+${item.def}` : '';
+    row.innerHTML = `<span>${info.icon} ${item.name}</span><span style="color:#aaa;font-size:11px">${stats}</span>`;
+    row.onclick = () => equipItem(idx);
+    bagEl.appendChild(row);
+  });
+}
+
+function equipItem(idx) {
+  const p = G.player;
+  const item = p.equips[idx];
+  if (!item) return;
+  // 現在の装備をはずしてequipsへ
+  if (p[item.slot]) {
+    p.equips.push(p[item.slot]);
+  }
+  p[item.slot] = item;
+  p.equips.splice(idx, 1);
+  showNotif(`${item.name}を装備した！`);
+  renderEquipScreen();
+  updateStatus();
+}
+
+function unequipSlot(slot) {
+  const p = G.player;
+  if (!p[slot]) return;
+  p.equips.push(p[slot]);
+  p[slot] = null;
+  showNotif('装備をはずした');
+  renderEquipScreen();
+  updateStatus();
+}
+
+function closeEquip() { showScreen('menu-screen'); openMenu(); }
+
 function showInventory() {
   const p = G.player;
   if (p.items.length === 0) {
@@ -1304,8 +1418,8 @@ function buyItem(item, type) {
     p.items.push({...item});
     showNotif(`${item.name}を買った！`);
   } else if (item.type === 'equip') {
-    p[item.slot] = item;
-    showNotif(`${item.name}を装備した！`);
+    p.equips.push({...item});
+    showNotif(`${item.name}を入手！「そうび」メニューで装備しよう`);
   }
   document.getElementById('shop-gold').textContent = p.gold;
   updateStatus();
